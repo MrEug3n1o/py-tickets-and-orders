@@ -1,33 +1,42 @@
-from datetime import datetime
-
 from django.db import transaction
+from db.models import Order, Ticket, User, MovieSession
+from django.utils.dateparse import parse_datetime
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import QuerySet
-
-from db.models import Order, Ticket, User
 
 
 def create_order(
-        tickets: list,
+        tickets: list[dict],
         username: str,
         date: str = None
-) -> None:
+) -> Order:
+    user = User.objects.get(username=username)
+    created_at = parse_datetime(date) if date else None
+
     with transaction.atomic():
-        order = Order(
-            user=User.objects.get(username=username)
-        )
-        if date:
-            order.created_at = datetime.strptime(date, "%Y-%m-%d %H:%M")
-        order.save()
-        for ticket in tickets:
+        order = Order.objects.create(user=user)
+        if created_at:
+            order.created_at = created_at
+            order.save()
+
+        for ticket_data in tickets:
+            movie_session = MovieSession.objects.get(
+                id=ticket_data["movie_session"])
             Ticket.objects.create(
-                movie_session_id=ticket["movie_session"],
-                seat=ticket["seat"],
-                row=ticket["row"],
-                order=order
+                movie_session=movie_session,
+                order=order,
+                row=ticket_data["row"],
+                seat=ticket_data["seat"],
             )
+    return order
 
 
 def get_orders(username: str = None) -> QuerySet:
     if username:
-        return Order.objects.filter(user__username=username)
-    return Order.objects.all()
+        try:
+            user = User.objects.get(username=username)
+        except ObjectDoesNotExist:
+            return Order.objects.none()
+        return Order.objects.filter(user=user)
+     else:
+        return Order.objects.all()
