@@ -17,7 +17,6 @@ def get_movies(
 
     if title is not None:
         queryset = queryset.filter(title__contains=title)
-
     return queryset
 
 
